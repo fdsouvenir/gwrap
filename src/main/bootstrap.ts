@@ -38,6 +38,14 @@ app.whenReady().then(() => {
     logger.error("unhandled-rejection", { reason: String(reason) });
   });
 
+  app.on("child-process-gone", (_event, details) => {
+    logger.warn("child-process-gone", {
+      type: details.type,
+      reason: details.reason,
+      serviceName: details.serviceName ?? null,
+    });
+  });
+
   const store = new AppStore();
   let trayController: TrayController | null = null;
   windowManager = new WindowManager(store, {

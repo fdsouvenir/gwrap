@@ -2,18 +2,21 @@
   "name": "gwrap",
   "version": "3.0.0",
   "description": "Desktop wrappers for Google web apps on Linux",
+  "author": "Frederic Souvenir <fred@fdsconsulting.com>",
   "main": "build/main/bootstrap.js",
   "scripts": {
     "compile": "tsc -p tsconfig.json",
     "start": "npm run compile && electron . --no-sandbox",
-    "build": "npm run compile && electron-builder --linux"
+    "build": "npm run compile && electron-builder --linux",
+    "test": "vitest run"
   },
   "build": {
     "appId": "com.gwrap.linux",
     "productName": "gwrap",
     "linux": {
       "target": ["deb", "AppImage"],
-      "category": "Network"
+      "category": "Network",
+      "icon": "icons/google-g.png"
     },
     "files": [
       "build/**",
@@ -25,6 +28,7 @@
   "devDependencies": {
     "electron": "^35.0.0",
     "electron-builder": "^26.0.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.1"
   }
 }

@@ -21,6 +21,7 @@ const RETRYABLE_ERROR_CODES = new Set([-2, -3, -6, -7, -21, -100, -101, -105, -1
 
 export class AppInstance {
   private window: BrowserWindow | null = null;
+  private lastVisible = false;
   private readonly retryController: RetryController;
 
   constructor(
@@ -31,11 +32,12 @@ export class AppInstance {
   ) {
     this.retryController = new RetryController(3, 1500, () => {
       logger.warn("retrying-window-load", { targetId: this.descriptor.id });
-      this.window?.webContents.reloadIgnoringCache();
+      this.recoverWindow();
     });
   }
 
   create(initiallyVisible: boolean): BrowserWindow {
+    this.lastVisible = initiallyVisible;
     const bounds = this.store.getBounds(this.descriptor.id);
     const options: BrowserWindowConstructorOptions = {
       width: bounds?.width ?? 1180,
@@ -72,9 +74,18 @@ export class AppInstance {
   }
 
   surface(reason: string): void {
+    this.retryController.reset();
+    this.lastVisible = true;
+
     if (!this.window || this.window.isDestroyed()) {
       this.create(true);
       logger.info("window-recreated", { targetId: this.descriptor.id, reason });
+      return;
+    }
+
+    if (this.window.webContents.isCrashed()) {
+      this.recreateWindow(true);
+      logger.warn("window-recreated-after-crash", { targetId: this.descriptor.id, reason });
       return;
     }
 
@@ -89,6 +100,7 @@ export class AppInstance {
   }
 
   hide(): void {
+    this.lastVisible = false;
     this.window?.hide();
   }
 
@@ -115,6 +127,7 @@ export class AppInstance {
       }
 
       event.preventDefault();
+      this.lastVisible = false;
       currentWindow.hide();
       logger.info("window-hidden", { targetId: this.descriptor.id, reason: "close" });
     });
@@ -145,13 +158,23 @@ export class AppInstance {
       });
 
       if (RETRYABLE_ERROR_CODES.has(errorCode)) {
-        this.retryController.schedule();
+        const scheduled = this.retryController.schedule();
+        if (!scheduled) {
+          logger.warn("window-load-retries-exhausted", { targetId: this.descriptor.id });
+        }
       }
     });
 
     this.window.webContents.on("render-process-gone", (_event, details) => {
       logger.error("render-process-gone", { targetId: this.descriptor.id, reason: details.reason });
-      this.retryController.schedule();
+      const scheduled = this.retryController.schedule();
+      if (!scheduled) {
+        logger.warn("window-recovery-retries-exhausted", { targetId: this.descriptor.id });
+      }
+    });
+
+    this.window.webContents.on("unresponsive", () => {
+      logger.warn("window-unresponsive", { targetId: this.descriptor.id });
     });
 
     this.window.on("closed", () => {
@@ -223,5 +246,24 @@ export class AppInstance {
       x: bounds.x,
       y: bounds.y,
     });
+  }
+
+  private recoverWindow(): void {
+    if (!this.window || this.window.isDestroyed() || this.window.webContents.isCrashed()) {
+      this.recreateWindow(this.lastVisible);
+      return;
+    }
+
+    void this.window.webContents.reloadIgnoringCache();
+  }
+
+  private recreateWindow(initiallyVisible: boolean): void {
+    if (this.window && !this.window.isDestroyed()) {
+      this.window.removeAllListeners();
+      this.window.destroy();
+    }
+
+    this.window = null;
+    this.create(initiallyVisible);
   }
 }
