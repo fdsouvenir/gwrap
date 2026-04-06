@@ -1,0 +1,28 @@
+{
+  "name": "gwrap-linux",
+  "version": "2.0.0",
+  "description": "Desktop wrappers for Google web apps on Linux",
+  "main": "main.js",
+  "scripts": {
+    "start": "GTK_CSD=0 electron . --no-sandbox",
+    "build": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.gwrap.linux",
+    "productName": "gwrap-linux",
+    "linux": {
+      "target": ["deb", "AppImage"],
+      "category": "Network"
+    },
+    "files": [
+      "main.js",
+      "config.js",
+      "lib/**",
+      "icons/**"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^26.0.0"
+  }
+}
