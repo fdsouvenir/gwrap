@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manage Accounts</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f4ee;
+        --panel: #fffdf7;
+        --text: #1e251f;
+        --muted: #5c685d;
+        --border: #d8d2c4;
+        --accent: #19643a;
+        --accent-soft: #dbeedd;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Noto Sans", "Cantarell", sans-serif;
+        background:
+          radial-gradient(circle at top right, rgba(25, 100, 58, 0.08), transparent 28%),
+          var(--bg);
+        color: var(--text);
+      }
+
+      main {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 28px 20px 32px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 1.75rem;
+      }
+
+      h2 {
+        margin-top: 0;
+      }
+
+      p {
+        margin: 0 0 20px;
+        color: var(--muted);
+      }
+
+      section {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 18px;
+        margin-bottom: 18px;
+        box-shadow: 0 10px 30px rgba(31, 40, 32, 0.06);
+      }
+
+      .account-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+        gap: 10px;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .account-row:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+      }
+
+      input[type="text"] {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font: inherit;
+        background: white;
+      }
+
+      label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 10px 16px;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .primary {
+        background: var(--accent);
+        color: white;
+      }
+
+      .secondary {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      .danger {
+        background: #f6d9d9;
+        color: #842222;
+      }
+
+      .empty {
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div>
+        <h1>Accounts</h1>
+        <p>Shared accounts drive Gmail and Calendar windows. Messages is always available.</p>
+      </div>
+
+      <section>
+        <h2>Existing Accounts</h2>
+        <div id="accounts" class="empty">Loading accounts…</div>
+      </section>
+
+      <section>
+        <h2>Add Account</h2>
+        <div class="account-row" style="border-bottom: 0; padding-bottom: 0;">
+          <input id="new-name" type="text" placeholder="Account name" />
+          <label><input id="new-gmail" type="checkbox" checked /> Gmail</label>
+          <label><input id="new-calendar" type="checkbox" checked /> Calendar</label>
+          <button id="add-account" class="primary">Add</button>
+          <span></span>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const accountsEl = document.getElementById("accounts");
+      const newNameEl = document.getElementById("new-name");
+      const newGmailEl = document.getElementById("new-gmail");
+      const newCalendarEl = document.getElementById("new-calendar");
+      const addButtonEl = document.getElementById("add-account");
+
+      async function loadAccounts() {
+        const accounts = await window.manageAccountsApi.list();
+        renderAccounts(accounts);
+      }
+
+      function renderAccounts(accounts) {
+        if (!accounts.length) {
+          accountsEl.className = "empty";
+          accountsEl.textContent = "No accounts configured yet.";
+          return;
+        }
+
+        accountsEl.className = "";
+        accountsEl.innerHTML = "";
+
+        for (const account of accounts) {
+          const row = document.createElement("div");
+          row.className = "account-row";
+          row.innerHTML = `
+            <input type="text" value="${escapeHtml(account.name)}" />
+            <label><input type="checkbox" ${account.gmailEnabled ? "checked" : ""} /> Gmail</label>
+            <label><input type="checkbox" ${account.calendarEnabled ? "checked" : ""} /> Calendar</label>
+            <button class="secondary">Save</button>
+            <button class="danger">Remove</button>
+          `;
+
+          const [nameInput, gmailLabel, calendarLabel, saveButton, removeButton] = row.children;
+          saveButton.addEventListener("click", async () => {
+            await window.manageAccountsApi.save({
+              id: account.id,
+              name: nameInput.value,
+              gmailEnabled: gmailLabel.querySelector("input").checked,
+              calendarEnabled: calendarLabel.querySelector("input").checked
+            });
+            await loadAccounts();
+          });
+
+          removeButton.addEventListener("click", async () => {
+            await window.manageAccountsApi.remove(account.id);
+            await loadAccounts();
+          });
+
+          accountsEl.appendChild(row);
+        }
+      }
+
+      function escapeHtml(value) {
+        return value
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;");
+      }
+
+      addButtonEl.addEventListener("click", async () => {
+        if (!newNameEl.value.trim()) {
+          newNameEl.focus();
+          return;
+        }
+
+        await window.manageAccountsApi.save({
+          name: newNameEl.value,
+          gmailEnabled: newGmailEl.checked,
+          calendarEnabled: newCalendarEl.checked
+        });
+
+        newNameEl.value = "";
+        newGmailEl.checked = true;
+        newCalendarEl.checked = true;
+        await loadAccounts();
+      });
+
+      loadAccounts();
+    </script>
+  </body>
+</html>

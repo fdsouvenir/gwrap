@@ -8,6 +8,13 @@ export interface Account {
   calendarEnabled: boolean;
 }
 
+export interface AccountInput {
+  id?: string;
+  name: string;
+  gmailEnabled: boolean;
+  calendarEnabled: boolean;
+}
+
 export interface BoundsSnapshot {
   width: number;
   height: number;

@@ -4,6 +4,7 @@ import { logger } from "./logger";
 import { AppStore } from "./store";
 import { WindowManager } from "./window-manager";
 import { TrayController } from "./tray";
+import { ManageAccountsWindow } from "./manage-accounts-window";
 
 declare global {
   var __GWARP_QUITTING__: boolean | undefined;
@@ -38,8 +39,27 @@ app.whenReady().then(() => {
   });
 
   const store = new AppStore();
-  windowManager = new WindowManager(store);
-  const trayController = new TrayController(windowManager);
+  let trayController: TrayController | null = null;
+  windowManager = new WindowManager(store, {
+    onTargetsChanged: () => trayController?.rebuild(),
+  });
+
+  const manageAccountsWindow = new ManageAccountsWindow(store, {
+    onAccountsChanged: () => {
+      windowManager?.syncWithStore();
+    },
+  });
+
+  trayController = new TrayController(
+    windowManager,
+    () => manageAccountsWindow.show(),
+    () => {
+      global.__GWARP_QUITTING__ = true;
+      windowManager?.destroyAll();
+      app.quit();
+    }
+  );
+
   windowManager.initialize();
   trayController.create();
 });

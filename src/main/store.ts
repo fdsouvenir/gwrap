@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
 import { APP_NAME, STORE_FILENAME } from "./constants";
-import type { Account, AppSettings } from "../shared/types";
+import { uniqueAccountId } from "./account-utils";
+import type { Account, AccountInput, AppSettings } from "../shared/types";
 
 interface LegacyAccount {
   id: string;
@@ -31,6 +32,46 @@ export class AppStore {
 
   getAccounts(): Account[] {
     return structuredClone(this.settings.accounts);
+  }
+
+  upsertAccount(input: AccountInput): Account {
+    const name = input.name.trim();
+    if (!name) {
+      throw new Error("Account name is required");
+    }
+
+    const existing = this.settings.accounts.find((account) => account.id === input.id);
+    if (existing) {
+      existing.name = name;
+      existing.gmailEnabled = input.gmailEnabled;
+      existing.calendarEnabled = input.calendarEnabled;
+      this.persist();
+      return structuredClone(existing);
+    }
+
+    const account: Account = {
+      id: uniqueAccountId(name, this.settings.accounts),
+      name,
+      partition: `persist:account-${Date.now()}`,
+      gmailEnabled: input.gmailEnabled,
+      calendarEnabled: input.calendarEnabled,
+    };
+
+    this.settings.accounts.push(account);
+    this.persist();
+    return structuredClone(account);
+  }
+
+  removeAccount(accountId: string): void {
+    this.settings.accounts = this.settings.accounts.filter((account) => account.id !== accountId);
+
+    for (const targetId of Object.keys(this.settings.windowBounds)) {
+      if (targetId.endsWith(`:${accountId}`)) {
+        delete this.settings.windowBounds[targetId];
+      }
+    }
+
+    this.persist();
   }
 
   saveBounds(targetId: string, bounds: AppSettings["windowBounds"][string]): void {
